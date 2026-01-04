@@ -6,3 +6,45 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+
+model User {
+  id        String     @id @default(uuid())
+  email     String     @unique
+  createdAt DateTime   @default(now())
+
+  buyItems  BuyItem[]
+
+  @@map("users")
+}
+
+model BuyItem {
+  id          String    @id @default(uuid())
+  title       String
+  priority    Priority
+  status      BuyStatus
+  targetPrice Int?
+  link        String?
+  notes       String?
+
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  deletedAt  DateTime?
+
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+  @@map("buy_items")
+}
+
+enum BuyStatus {
+  PLANNED
+  BOUGHT
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+}
