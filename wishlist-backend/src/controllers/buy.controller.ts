@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from "express";
 import { BuyService } from "../services/buy.service";
 import { BuyStatus } from "@prisma/client";
+import { listQuerySchema } from "../validations/query.validation";
 
 export class BuyController {
   static async create(req: Request, res: Response, next: NextFunction) {
@@ -12,13 +13,14 @@ export class BuyController {
     }
   }
   static async list(req: Request, res: Response, next: NextFunction) {
-    try {
-      const items = await BuyService.list(req.user.id);
-      res.json(items);
-    } catch (err) {
-      next(err);
-    }
+  try {
+    const query = listQuerySchema.parse(req.query);
+    const result = await BuyService.list(req.user.id, query);
+    res.json(result);
+  } catch (err) {
+    next(err);
   }
+}
 
   static async update(req: Request, res: Response, next: NextFunction) {
     try {

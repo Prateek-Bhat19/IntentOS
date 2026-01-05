@@ -27,12 +27,47 @@ export class BuyService {
     });
   }
 
-  static async list(userId: string) {
-    return prisma.buyItem.findMany({
-        where: {userId, deletedAt: null},
-        orderBy: {createdAt: "desc"},
-    });
+  static async list(
+  userId: string,
+  opts: {
+    page: number;
+    limit: number;
+    status?: "PLANNED" | "BOUGHT";
+    priority?: "LOW" | "MEDIUM" | "HIGH";
+    sort: "createdAt" | "priority";
+    order: "asc" | "desc";
   }
+) {
+  const { page, limit, status, priority, sort, order } = opts;
+
+  const where: any = {
+    userId,
+    deletedAt: null,
+    ...(status && { status }),
+    ...(priority && { priority }),
+  };
+
+  const [items, total] = await prisma.$transaction([
+    prisma.buyItem.findMany({
+      where,
+      orderBy: { [sort]: order },
+      skip: (page - 1) * limit,
+      take: limit,
+    }),
+    prisma.buyItem.count({ where }),
+  ]);
+
+  return {
+    items,
+    meta: {
+      page,
+      limit,
+      total,
+      totalPages: Math.ceil(total / limit),
+    },
+  };
+}
+
 
   static async update(userId: string, id: string, updates: Partial<CreateBuyItemInput>) {
     const item = await prisma.buyItem.findFirst({where: {id, userId}})
