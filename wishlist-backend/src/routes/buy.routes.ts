@@ -1,13 +1,25 @@
 import { Router } from "express";
 import { BuyController } from "../controllers/buy.controller";
+import { requireAuth } from "../middlewares/auth.middleware";
+import { validate } from "../middlewares/validate.middleware";
+import {
+  createBuyItemSchema,
+  updateBuyItemSchema,
+  changeStatusSchema,
+} from "../validations/buy.validation";
 
 const router = Router();
 
-router.post("/", BuyController.create);
+router.use(requireAuth);
+
+router.post("/", validate(createBuyItemSchema), BuyController.create);
 router.get("/", BuyController.list);
-router.put("/:id", BuyController.update);
-router.patch("/:id/status", BuyController.changeStatus);
+router.put("/:id", validate(updateBuyItemSchema), BuyController.update);
+router.patch(
+  "/:id/status",
+  validate(changeStatusSchema),
+  BuyController.changeStatus
+);
 router.delete("/:id", BuyController.remove);
 
 export default router;
-
