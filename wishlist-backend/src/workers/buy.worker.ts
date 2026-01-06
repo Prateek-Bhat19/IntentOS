@@ -1,4 +1,4 @@
-import { Worker } from "bullmq";
+import { Worker, UnrecoverableError } from "bullmq";
 import { redis } from "../redis/client";
 import { BUY_QUEUE_NAME, BuyJobTypes } from "../queues/buy.queue";
 import { BuyService } from "../services/buy.service";
@@ -10,15 +10,23 @@ const worker = new Worker(
       case BuyJobTypes.FETCH_METADATA: {
         const { buyItemId } = job.data as { buyItemId: string };
 
-        //mock external fetch
-        const fakeMetadata = {
-          title: "Fetched product title",
-          price: Math.floor(Math.random() * 10000),
-          source: "mock",
-          fetchedAt: new Date().toISOString(),
-        };
+        // Example classification
+        const urlInvalid = false; // replace with real check later
+        if (urlInvalid) {
+          // Permanent failure → do NOT retry
+          throw new UnrecoverableError("Invalid URL – permanent failure");
+        }
 
-        await BuyService.attachMetadata(buyItemId, fakeMetadata);
+        // Retryable failure example
+        const networkDown = false;
+        if (networkDown) {
+          throw new Error("Temporary network failure");
+        }
+
+        await BuyService.attachMetadata(buyItemId, {
+          fetchedAt: new Date().toISOString(),
+          source: "mock",
+        });
 
         break;
       }

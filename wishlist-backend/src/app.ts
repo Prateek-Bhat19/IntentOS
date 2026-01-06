@@ -17,10 +17,5 @@ app.use("/api/buy", buyRoutes);
 
 startPriceCheckCron();
 
-app.post("/debug/enqueue", async (_req, res) => {
-  await enqueueFetchMetadata("test-buy-item-id");
-  res.json({ status: "job enqueued" });
-});
-
 app.use(errorHandler);
 export default app;

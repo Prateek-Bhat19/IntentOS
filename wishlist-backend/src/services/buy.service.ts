@@ -6,6 +6,7 @@ import {
   ValidationError,
 } from "../errors/AppError";
 import { enqueueFetchMetadata } from "../queues/buy.queue";
+import { getCache, setCache, deleteByPattern } from "../redis/cache";
 
 type CreateBuyItemInput = {
   title: string;
@@ -35,7 +36,10 @@ export class BuyService {
     if (item.link) {
       await enqueueFetchMetadata(item.id);
     }
-
+    
+    // Invalidate cache
+    await deleteByPattern(`buy:list:${userId}:*`);
+    
     return item;
   }
 
@@ -50,6 +54,24 @@ export class BuyService {
       order: "asc" | "desc";
     }
   ) {
+    const cacheKey = `buy:list:${userId}:${JSON.stringify(opts)}`;
+
+    // 1️⃣ Try cache first
+    const cached = await getCache<{
+      items: unknown[];
+      meta: {
+        page: number;
+        limit: number;
+        total: number;
+        totalPages: number;
+      };
+    }>(cacheKey);
+
+    if (cached) {
+      return cached;
+    }
+
+    // 2️⃣ Existing logic
     const { page, limit, status, priority, sort, order } = opts;
 
     const where: any = {
@@ -69,7 +91,7 @@ export class BuyService {
       prisma.buyItem.count({ where }),
     ]);
 
-    return {
+    const result = {
       items,
       meta: {
         page,
@@ -78,58 +100,77 @@ export class BuyService {
         totalPages: Math.ceil(total / limit),
       },
     };
+
+    // 3️⃣ Save to cache
+    await setCache(cacheKey, result, 60);
+
+    return result;
   }
 
   static async update(
-    userId: string,
-    id: string,
-    updates: Partial<CreateBuyItemInput>
-  ) {
-    const item = await prisma.buyItem.findFirst({ where: { id, userId } });
-    if (!item) throw new NotFoundError("Item not found");
-    if (item.status !== BuyStatus.PLANNED) {
-      throw new ForbiddenError("Only planned items can be edited");
-    }
-
-    return prisma.buyItem.update({
-      where: { id },
-      data: updates,
-    });
+  userId: string,
+  id: string,
+  updates: Partial<CreateBuyItemInput>
+) {
+  const item = await prisma.buyItem.findFirst({ where: { id, userId } });
+  if (!item) throw new NotFoundError("Item not found");
+  if (item.status !== BuyStatus.PLANNED) {
+    throw new ForbiddenError("Only planned items can be edited");
   }
+
+  const updated = await prisma.buyItem.update({
+    where: { id },
+    data: updates,
+  });
+
+  await deleteByPattern(`buy:list:${userId}:*`);
+
+  return updated;
+}
+
 
   static async changeStatus(userId: string, id: string, next: BuyStatus) {
-    const item = await prisma.buyItem.findFirst({ where: { id, userId } });
-    if (!item) throw new NotFoundError("Item not found");
+  const item = await prisma.buyItem.findFirst({ where: { id, userId } });
+  if (!item) throw new NotFoundError("Item not found");
 
-    if (item.status === BuyStatus.PLANNED && next === BuyStatus.BOUGHT) {
-      return prisma.buyItem.update({
-        where: { id },
-        data: { status: BuyStatus.BOUGHT },
-      });
-    }
+  let updated;
 
-    if (item.status === BuyStatus.BOUGHT && next === BuyStatus.PLANNED) {
-      // explicit revert
-      return prisma.buyItem.update({
-        where: { id },
-        data: { status: BuyStatus.PLANNED },
-      });
-    }
-
+  if (item.status === BuyStatus.PLANNED && next === BuyStatus.BOUGHT) {
+    updated = await prisma.buyItem.update({
+      where: { id },
+      data: { status: BuyStatus.BOUGHT },
+    });
+  } else if (item.status === BuyStatus.BOUGHT && next === BuyStatus.PLANNED) {
+    updated = await prisma.buyItem.update({
+      where: { id },
+      data: { status: BuyStatus.PLANNED },
+    });
+  } else {
     throw new ForbiddenError("Illegal status transition");
   }
-  static async softDelete(userId: string, id: string) {
-    const item = await prisma.buyItem.findFirst({ where: { id, userId } });
-    if (!item) throw new NotFoundError("Item not found");
-    if (item.status !== BuyStatus.PLANNED) {
-      throw new ForbiddenError("Only planned items can be deleted");
-    }
 
-    return prisma.buyItem.update({
-      where: { id },
-      data: { deletedAt: new Date() },
-    });
+  await deleteByPattern(`buy:list:${userId}:*`);
+
+  return updated;
+}
+
+
+  static async softDelete(userId: string, id: string) {
+  const item = await prisma.buyItem.findFirst({ where: { id, userId } });
+  if (!item) throw new NotFoundError("Item not found");
+  if (item.status !== BuyStatus.PLANNED) {
+    throw new ForbiddenError("Only planned items can be deleted");
   }
+
+  const deleted = await prisma.buyItem.update({
+    where: { id },
+    data: { deletedAt: new Date() },
+  });
+
+  await deleteByPattern(`buy:list:${userId}:*`);
+
+  return deleted;
+}
 
   static async attachMetadata(
     buyItemId: string,
@@ -141,20 +182,24 @@ export class BuyService {
 
     if (!item || item.deletedAt) return;
 
+    // Invalidate cache (Fixed: using item.userId instead of undefined userId)
+    await deleteByPattern(`buy:list:${item.userId}:*`);
+
     await prisma.buyItem.update({
       where: { id: buyItemId },
       data: { metadata },
     });
   }
-  
+
   static async findItemsForPriceCheck() {
+    // This is a system read operation (no specific userId to invalidate)
     return prisma.buyItem.findMany({
       where: {
         status: "PLANNED",
         deletedAt: null,
-        link: {not: null},
+        link: { not: null },
       },
-      select: {id: true},
+      select: { id: true },
     });
   }
 }

@@ -22,9 +22,23 @@ export const BuyJobTypes = {
 } as const;
 
 export async function enqueueFetchMetadata(buyItemId: string) {
-    return BuyQueue.add(BuyJobTypes.FETCH_METADATA, {buyItemId});
+  return BuyQueue.add(
+    BuyJobTypes.FETCH_METADATA,
+    { buyItemId },
+    {
+      attempts: 5,
+      backoff: { type: "exponential", delay: 2000 },
+    }
+  );
 }
 
 export async function enqueuePriceCheck(buyItemId: string) {
-    return BuyQueue.add(BuyJobTypes.CHECK_PRICE, {buyItemId});
+  return BuyQueue.add(
+    BuyJobTypes.CHECK_PRICE,
+    { buyItemId },
+    {
+      attempts: 3,
+      backoff: { type: "fixed", delay: 10_000 },
+    }
+  );
 }
