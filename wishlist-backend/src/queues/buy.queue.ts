@@ -24,3 +24,7 @@ export const BuyJobTypes = {
 export async function enqueueFetchMetadata(buyItemId: string) {
     return BuyQueue.add(BuyJobTypes.FETCH_METADATA, {buyItemId});
 }
+
+export async function enqueuePriceCheck(buyItemId: string) {
+    return BuyQueue.add(BuyJobTypes.CHECK_PRICE, {buyItemId});
+}

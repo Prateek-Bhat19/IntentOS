@@ -132,19 +132,29 @@ export class BuyService {
   }
 
   static async attachMetadata(
-  buyItemId: string,
-  metadata: Prisma.InputJsonValue
-) {
-  const item = await prisma.buyItem.findUnique({
-    where: { id: buyItemId },
-  });
+    buyItemId: string,
+    metadata: Prisma.InputJsonValue
+  ) {
+    const item = await prisma.buyItem.findUnique({
+      where: { id: buyItemId },
+    });
 
-  if (!item || item.deletedAt) return;
+    if (!item || item.deletedAt) return;
 
-  await prisma.buyItem.update({
-    where: { id: buyItemId },
-    data: { metadata },
-  });
-}
-
+    await prisma.buyItem.update({
+      where: { id: buyItemId },
+      data: { metadata },
+    });
+  }
+  
+  static async findItemsForPriceCheck() {
+    return prisma.buyItem.findMany({
+      where: {
+        status: "PLANNED",
+        deletedAt: null,
+        link: {not: null},
+      },
+      select: {id: true},
+    });
+  }
 }
