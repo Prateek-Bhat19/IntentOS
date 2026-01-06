@@ -5,9 +5,13 @@ import { errorHandler } from "./middlewares/errorHandler";
 import authRoutes from "./routes/auth.routes";
 import { enqueueFetchMetadata } from "./queues/buy.queue";
 import { startPriceCheckCron } from "./cron/priceCheck.cron";
-
+import { requestId } from "./middlewares/requestId.middleware";
+import { httpLogger } from "./middlewares/httpLogger.middleware";
 
 const app = express();
+
+app.use(requestId);
+app.use(httpLogger);
 
 app.use(cors());
 app.use(express.json());

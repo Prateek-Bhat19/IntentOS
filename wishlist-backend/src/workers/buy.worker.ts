@@ -2,10 +2,20 @@ import { Worker, UnrecoverableError } from "bullmq";
 import { redis } from "../redis/client";
 import { BUY_QUEUE_NAME, BuyJobTypes } from "../queues/buy.queue";
 import { BuyService } from "../services/buy.service";
+import { logger } from "../logger";
 
 const worker = new Worker(
   BUY_QUEUE_NAME,
   async (job) => {
+    logger.info(
+      {
+        jobId: job.id,
+        jobName: job.name,
+        data: job.data,
+      },
+      "Job started"
+    );
+
     switch (job.name) {
       case BuyJobTypes.FETCH_METADATA: {
         const { buyItemId } = job.data as { buyItemId: string };
@@ -54,9 +64,22 @@ const worker = new Worker(
 );
 
 worker.on("completed", (job) => {
-  console.log(`Job ${job.id} completed`);
+  logger.info(
+    {
+      jobId: job.id,
+      jobName: job.name,
+    },
+    "Job completed"
+  );
 });
 
 worker.on("failed", (job, err) => {
-  console.error(`Job ${job?.id} failed`, err);
+  logger.error(
+    {
+      jobId: job?.id,
+      jobName: job?.name,
+      reason: err.message,
+    },
+    "Job failed"
+  );
 });
