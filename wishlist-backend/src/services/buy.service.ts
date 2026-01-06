@@ -1,6 +1,11 @@
 import { prisma } from "../db/prisma";
-import { PrismaClient, BuyStatus, Priority } from "@prisma/client";
-import { ForbiddenError, NotFoundError, ValidationError } from "../errors/AppError";
+import { PrismaClient, BuyStatus, Priority, Prisma } from "@prisma/client";
+import {
+  ForbiddenError,
+  NotFoundError,
+  ValidationError,
+} from "../errors/AppError";
+import { enqueueFetchMetadata } from "../queues/buy.queue";
 
 type CreateBuyItemInput = {
   title: string;
@@ -14,7 +19,7 @@ export class BuyService {
   static async create(userId: string, input: CreateBuyItemInput) {
     if (!input.title) throw new ValidationError("Title is required");
 
-    return prisma.buyItem.create({
+    const item = await prisma.buyItem.create({
       data: {
         title: input.title,
         priority: input.priority,
@@ -25,74 +30,90 @@ export class BuyService {
         userId,
       },
     });
+
+    // Async side effect (non-blocking)
+    if (item.link) {
+      await enqueueFetchMetadata(item.id);
+    }
+
+    return item;
   }
 
   static async list(
-  userId: string,
-  opts: {
-    page: number;
-    limit: number;
-    status?: "PLANNED" | "BOUGHT";
-    priority?: "LOW" | "MEDIUM" | "HIGH";
-    sort: "createdAt" | "priority";
-    order: "asc" | "desc";
+    userId: string,
+    opts: {
+      page: number;
+      limit: number;
+      status?: "PLANNED" | "BOUGHT";
+      priority?: "LOW" | "MEDIUM" | "HIGH";
+      sort: "createdAt" | "priority";
+      order: "asc" | "desc";
+    }
+  ) {
+    const { page, limit, status, priority, sort, order } = opts;
+
+    const where: any = {
+      userId,
+      deletedAt: null,
+      ...(status && { status }),
+      ...(priority && { priority }),
+    };
+
+    const [items, total] = await prisma.$transaction([
+      prisma.buyItem.findMany({
+        where,
+        orderBy: { [sort]: order },
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+      prisma.buyItem.count({ where }),
+    ]);
+
+    return {
+      items,
+      meta: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
   }
-) {
-  const { page, limit, status, priority, sort, order } = opts;
 
-  const where: any = {
-    userId,
-    deletedAt: null,
-    ...(status && { status }),
-    ...(priority && { priority }),
-  };
-
-  const [items, total] = await prisma.$transaction([
-    prisma.buyItem.findMany({
-      where,
-      orderBy: { [sort]: order },
-      skip: (page - 1) * limit,
-      take: limit,
-    }),
-    prisma.buyItem.count({ where }),
-  ]);
-
-  return {
-    items,
-    meta: {
-      page,
-      limit,
-      total,
-      totalPages: Math.ceil(total / limit),
-    },
-  };
-}
-
-
-  static async update(userId: string, id: string, updates: Partial<CreateBuyItemInput>) {
-    const item = await prisma.buyItem.findFirst({where: {id, userId}})
-    if(!item) throw new NotFoundError("Item not found");
-    if(item.status !== BuyStatus.PLANNED) {
-        throw new ForbiddenError("Only planned items can be edited");
+  static async update(
+    userId: string,
+    id: string,
+    updates: Partial<CreateBuyItemInput>
+  ) {
+    const item = await prisma.buyItem.findFirst({ where: { id, userId } });
+    if (!item) throw new NotFoundError("Item not found");
+    if (item.status !== BuyStatus.PLANNED) {
+      throw new ForbiddenError("Only planned items can be edited");
     }
 
     return prisma.buyItem.update({
-        where: {id},
-        data: updates,
-    })
+      where: { id },
+      data: updates,
+    });
   }
 
   static async changeStatus(userId: string, id: string, next: BuyStatus) {
-  const item = await prisma.buyItem.findFirst({ where: { id, userId } });
+    const item = await prisma.buyItem.findFirst({ where: { id, userId } });
     if (!item) throw new NotFoundError("Item not found");
 
     if (item.status === BuyStatus.PLANNED && next === BuyStatus.BOUGHT) {
-      return prisma.buyItem.update({ where: { id }, data: { status: BuyStatus.BOUGHT } });
+      return prisma.buyItem.update({
+        where: { id },
+        data: { status: BuyStatus.BOUGHT },
+      });
     }
 
     if (item.status === BuyStatus.BOUGHT && next === BuyStatus.PLANNED) {
       // explicit revert
-      return prisma.buyItem.update({ where: { id }, data: { status: BuyStatus.PLANNED } });
+      return prisma.buyItem.update({
+        where: { id },
+        data: { status: BuyStatus.PLANNED },
+      });
     }
 
     throw new ForbiddenError("Illegal status transition");
@@ -109,4 +130,21 @@ export class BuyService {
       data: { deletedAt: new Date() },
     });
   }
+
+  static async attachMetadata(
+  buyItemId: string,
+  metadata: Prisma.InputJsonValue
+) {
+  const item = await prisma.buyItem.findUnique({
+    where: { id: buyItemId },
+  });
+
+  if (!item || item.deletedAt) return;
+
+  await prisma.buyItem.update({
+    where: { id: buyItemId },
+    data: { metadata },
+  });
+}
+
 }

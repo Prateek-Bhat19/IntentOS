@@ -4,7 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "dev": "ts-node-dev --respawn --transpile-only src/server.ts"
+    "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
+     "worker:buy": "ts-node-dev --respawn --transpile-only src/workers/buy.worker.ts"
   },
   "keywords": [],
   "author": "",
@@ -13,9 +14,11 @@
   "dependencies": {
     "@prisma/client": "^6.19.1",
     "bcryptjs": "^3.0.3",
+    "bullmq": "^5.66.4",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
+    "ioredis": "^5.8.2",
     "jsonwebtoken": "^9.0.3",
     "prisma": "^6.19.1",
     "zod": "^4.3.5"
