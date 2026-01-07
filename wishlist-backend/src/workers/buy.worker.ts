@@ -72,7 +72,7 @@ const worker = new Worker(
           }
         }
 
-        // Save metadata (convert to JSON-compatible object)
+        // Save metadata
         await BuyService.attachMetadata(buyItemId, result.data! as any);
         
         logger.info(

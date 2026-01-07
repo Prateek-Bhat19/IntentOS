@@ -13,14 +13,14 @@ export class BuyController {
     }
   }
   static async list(req: Request, res: Response, next: NextFunction) {
-  try {
-    const query = listQuerySchema.parse(req.query);
-    const result = await BuyService.list(req.user.id, query);
-    res.json(result);
-  } catch (err) {
-    next(err);
+    try {
+      const query = listQuerySchema.parse(req.query);
+      const result = await BuyService.list(req.user.id, query);
+      res.json(result);
+    } catch (err) {
+      next(err);
+    }
   }
-}
 
   static async update(req: Request, res: Response, next: NextFunction) {
     try {

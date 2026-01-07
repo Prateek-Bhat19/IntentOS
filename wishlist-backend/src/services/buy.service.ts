@@ -56,7 +56,7 @@ export class BuyService {
   ) {
     const cacheKey = `buy:list:${userId}:${JSON.stringify(opts)}`;
 
-    // 1️⃣ Try cache first
+    // Try cache first
     const cached = await getCache<{
       items: unknown[];
       meta: {
@@ -71,7 +71,7 @@ export class BuyService {
       return cached;
     }
 
-    // 2️⃣ Existing logic
+    // Fetch from database
     const { page, limit, status, priority, sort, order } = opts;
 
     const where: any = {
@@ -101,7 +101,7 @@ export class BuyService {
       },
     };
 
-    // 3️⃣ Save to cache
+    // Save to cache
     await setCache(cacheKey, result, 60);
 
     return result;
@@ -182,13 +182,15 @@ export class BuyService {
 
     if (!item || item.deletedAt) return;
 
-    // Invalidate cache (Fixed: using item.userId instead of undefined userId)
-    await deleteByPattern(`buy:list:${item.userId}:*`);
-
+    // Update the item first
     await prisma.buyItem.update({
       where: { id: buyItemId },
       data: { metadata },
     });
+
+    // Invalidate ALL caches for this user (more aggressive)
+    await deleteByPattern(`buy:*:${item.userId}:*`);
+    await deleteByPattern(`buy:list:${item.userId}:*`);
   }
 
   static async findById(buyItemId: string) {
