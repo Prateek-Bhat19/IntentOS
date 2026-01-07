@@ -191,6 +191,12 @@ export class BuyService {
     });
   }
 
+  static async findById(buyItemId: string) {
+    return prisma.buyItem.findUnique({
+      where: { id: buyItemId },
+    });
+  }
+
   static async findItemsForPriceCheck() {
     // This is a system read operation (no specific userId to invalidate)
     return prisma.buyItem.findMany({

@@ -1,6 +1,3 @@
-import dotenv from "dotenv";
-dotenv.config();
-
 import app from "./app";
 import { shutdown } from "./shutdown";
 import { env } from "./config/env";

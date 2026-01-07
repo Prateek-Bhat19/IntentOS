@@ -1,0 +1,30 @@
+# Copy this content to your .env file
+# Location: wishlist-backend/.env
+
+# Application
+NODE_ENV=development
+PORT=8000
+
+# Database (update with your actual PostgreSQL connection string)
+DATABASE_URL=postgresql://user:password@localhost:5432/wishlist
+
+# Redis
+REDIS_HOST=localhost
+REDIS_PORT=6379
+
+# JWT (generate a secure secret key)
+JWT_SECRET=your-super-secret-jwt-key-minimum-32-characters-long-please-change-this
+
+# Logging
+LOG_LEVEL=info
+
+# Adapter Configuration
+ENABLE_REAL_ADAPTERS=false
+
+# API Keys (optional)
+# CANOPY_API_KEY=your-canopy-api-key
+
+# Adapter Settings
+ADAPTER_TIMEOUT_MS=10000
+ADAPTER_MAX_RETRIES=3
+ADAPTER_RATE_LIMIT_RPM=60
