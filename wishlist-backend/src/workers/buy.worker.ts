@@ -83,3 +83,15 @@ worker.on("failed", (job, err) => {
     "Job failed"
   );
 });
+
+const closeWorker = async (signal: string) => {
+  logger.info({ signal }, "Worker shutdown started");
+
+  await worker.close(); // waits for active jobs
+  await redis.quit();
+
+  process.exit(0);
+};
+
+process.on("SIGTERM", closeWorker);
+process.on("SIGINT", closeWorker);
