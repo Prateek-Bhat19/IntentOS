@@ -5,10 +5,10 @@ import { env } from '../../config/env';
  */
 export const adapterConfig = {
   // Feature flags
-  enableRealAdapters: env.ENABLE_REAL_ADAPTERS,
+  enableRealAdapters: true,
   
   // API keys
-  canopyApiKey: env.CANOPY_API_KEY,
+  canopyApiKey: undefined, // Disabled as per user request
   
   // Timeouts and retries
   timeoutMs: env.ADAPTER_TIMEOUT_MS,

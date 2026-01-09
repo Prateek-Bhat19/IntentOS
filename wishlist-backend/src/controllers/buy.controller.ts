@@ -16,6 +16,7 @@ export class BuyController {
     try {
       const query = listQuerySchema.parse(req.query);
       const result = await BuyService.list(req.user.id, query);
+      console.log("DEBUG: BuyController.list result:", JSON.stringify(result, null, 2));
       res.json(result);
     } catch (err) {
       next(err);

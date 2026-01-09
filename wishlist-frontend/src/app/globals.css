@@ -1,0 +1,99 @@
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Fonts */
+  --font-outfit: 'Outfit', sans-serif;
+  --font-serif: 'Instrument Serif', serif;
+
+  /* PACE-inspired Light Theme (Warm, Editorial) */
+  --background: #FDFCF8;    /* Warm Cream */
+  --foreground: #1A1918;    /* Soft Rich Black */
+  
+  --primary: #1A1918;
+  --primary-foreground: #FDFCF8;
+  
+  --card: #F4F2EB;          /* Slightly Darker Cream for cards */
+  --card-foreground: #1A1918;
+  
+  --muted: #E6E4DC;         /* Warm Grey/Beige */
+  --muted-foreground: #63615A;
+  
+  --accent: #D86F46;        /* Burnt Orange/Terracotta (from reference image highlights) */
+  --accent-foreground: #FFFFFF;
+
+  --border: #E8E6DE;
+  --radius: 0.75rem;
+}
+
+[data-theme='dark'] {
+  /* Refined Dark Theme (Deep Charcoal, not pure black) */
+  --background: #0E0E0E;
+  --foreground: #EAEAEA;
+  
+  --primary: #EAEAEA;
+  --primary-foreground: #0E0E0E;
+  
+  --card: #1C1C1C;
+  --card-foreground: #EAEAEA;
+  
+  --muted: #2A2A2A;
+  --muted-foreground: #888888;
+  
+  --accent: #D86F46;
+  --accent-foreground: #FFFFFF;
+  
+  --border: #2A2A2A;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-outfit);
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Typography Utilities */
+.font-serif {
+  font-family: var(--font-serif);
+  font-weight: 400; /* Instrument Serif looks best at 400 */
+}
+
+/* Custom Utilities */
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 1.5rem;
+}
+
+/* Button Refinement */
+.btn {
+  @apply inline-flex items-center justify-center rounded-full px-6 py-3 text-sm font-medium transition-all duration-300 transform active:scale-95;
+}
+
+.btn-primary {
+  background-color: var(--primary);
+  color: var(--primary-foreground);
+}
+.btn-primary:hover {
+  opacity: 0.9;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+.btn-outline {
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--foreground);
+}
+.btn-outline:hover {
+  background: var(--muted);
+}
+
+.product-card-hover {
+    transition: transform 0.4s cubic-bezier(0.165, 0.84, 0.44, 1);
+}
+.product-card-hover:hover {
+    transform: translateY(-4px);
+}

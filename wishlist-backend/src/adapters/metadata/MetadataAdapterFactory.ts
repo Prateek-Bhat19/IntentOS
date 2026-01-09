@@ -2,8 +2,9 @@ import { IMetadataAdapter, MetadataFetchResult } from './IMetadataAdapter';
 import { MockMetadataAdapter } from './MockMetadataAdapter';
 import { OpenGraphAdapter } from './OpenGraphAdapter';
 import { CanopyAdapter } from './CanopyAdapter';
-import { AmazonScraperAdapter } from './AmazonScraperAdapter';
-import { FlipkartScraperAdapter } from './FlipkartScraperAdapter';
+import { AmazonPuppeteerAdapter } from './AmazonPuppeteerAdapter';
+import { FlipkartPuppeteerAdapter } from './FlipkartPuppeteerAdapter';
+import { PlaywrightAdapter } from './PlaywrightAdapter';
 import { adapterConfig } from '../config/adapterConfig';
 import { logger } from '../../logger';
 import { RateLimiters } from '../utils/rateLimiter';
@@ -77,10 +78,11 @@ class RateLimitedCachedMetadataAdapter implements IMetadataAdapter {
  * 
  * Priority order:
  * 1. CanopyAdapter (if API key + supported URL)
- * 2. AmazonScraperAdapter (if Amazon URL)
- * 3. FlipkartScraperAdapter (if Flipkart URL)
- * 4. OpenGraphAdapter (universal fallback)
- * 5. MockAdapter (dev/testing)
+ * 2. AmazonPuppeteerAdapter (Puppeteer with stealth for Amazon)
+ * 3. FlipkartPuppeteerAdapter (Puppeteer with stealth for Flipkart)
+ * 4. PlaywrightAdapter (modern universal fallback)
+ * 5. OpenGraphAdapter (basic fallback)
+ * 6. MockAdapter (dev/testing)
  */
 export class MetadataAdapterFactory {
   private static adapters: IMetadataAdapter[] = [];
@@ -112,21 +114,29 @@ export class MetadataAdapterFactory {
         logger.warn('Canopy API key not configured, skipping Canopy adapter');
       }
       
-      // Add site-specific scrapers
+      // Add site-specific Puppeteer scrapers with stealth mode
       this.adapters.push(
         new RateLimitedCachedMetadataAdapter(
-          new AmazonScraperAdapter(),
+          new AmazonPuppeteerAdapter(),
           'AmazonScraper'
         )
       );
       this.adapters.push(
         new RateLimitedCachedMetadataAdapter(
-          new FlipkartScraperAdapter(),
+          new FlipkartPuppeteerAdapter(),
           'FlipkartScraper'
         )
       );
       
-      // Add OpenGraph as universal fallback
+      // Add Playwright as modern universal fallback
+      this.adapters.push(
+        new RateLimitedCachedMetadataAdapter(
+          new PlaywrightAdapter(),
+          'Playwright'
+        )
+      );
+      
+      // Add OpenGraph as basic fallback
       this.adapters.push(
         new RateLimitedCachedMetadataAdapter(
           new OpenGraphAdapter(),

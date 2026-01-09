@@ -137,6 +137,12 @@ export const RateLimiters = {
     refillInterval: 60 * 1000, // 1 minute
   }),
 
+  Playwright: new RateLimiter('Playwright', {
+    maxTokens: 100,
+    refillRate: 100,
+    refillInterval: 60 * 1000, // 1 minute
+  }),
+
   OpenGraph: new RateLimiter('OpenGraph', {
     maxTokens: 120,
     refillRate: 120,
