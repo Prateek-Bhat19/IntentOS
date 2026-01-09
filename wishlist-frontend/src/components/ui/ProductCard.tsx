@@ -10,6 +10,7 @@ interface ProductCardProps {
     price?: string | number;
     imageUrl?: string;
     status?: string;
+    priority?: "LOW" | "MEDIUM" | "HIGH";
     onClick?: () => void;
     onDelete?: (e?: React.MouseEvent) => void;
     onToggleStatus?: (e?: React.MouseEvent) => void;
@@ -23,6 +24,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
     price,
     imageUrl,
     status,
+    priority,
     onClick,
     onDelete,
     onToggleStatus,
@@ -36,9 +38,9 @@ export const ProductCard: React.FC<ProductCardProps> = ({
                 flexDirection: "column",
                 gap: "0.75rem",
                 cursor: "pointer",
-                position: "relative", // For absolute positioning of actions if needed, though we might use a footer
+                position: "relative",
             }}
-            className="product-card group" // Added group class for hover effects
+            className="product-card group"
         >
             <div
                 style={{
@@ -90,7 +92,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
                         gap: "0.5rem",
                         zIndex: 10,
                     }}
-                    onClick={(e) => e.stopPropagation()} // Prevent card click
+                    onClick={(e) => e.stopPropagation()}
                 >
                     {onToggleStatus && (
                         <button
@@ -113,7 +115,6 @@ export const ProductCard: React.FC<ProductCardProps> = ({
                             onMouseOver={(e) => e.currentTarget.style.transform = "scale(1.1)"}
                             onMouseOut={(e) => e.currentTarget.style.transform = "scale(1)"}
                         >
-                            {/* Check Icon */}
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                 <polyline points="20 6 9 17 4 12"></polyline>
                             </svg>
@@ -141,7 +142,6 @@ export const ProductCard: React.FC<ProductCardProps> = ({
                             onMouseOver={(e) => e.currentTarget.style.transform = "scale(1.1)"}
                             onMouseOut={(e) => e.currentTarget.style.transform = "scale(1)"}
                         >
-                            {/* Pencil Icon */}
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                 <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
                                 <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
@@ -170,7 +170,6 @@ export const ProductCard: React.FC<ProductCardProps> = ({
                             onMouseOver={(e) => e.currentTarget.style.transform = "scale(1.1)"}
                             onMouseOut={(e) => e.currentTarget.style.transform = "scale(1)"}
                         >
-                            {/* Trash Icon */}
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                 <path d="M3 6h18"></path>
                                 <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>

@@ -3,147 +3,133 @@
 import Link from "next/link";
 import { ProductCard } from "@/components/ui/ProductCard";
 import { Button } from "@/components/ui/Button";
-import { useEffect, useState, useCallback } from "react";
-import api from "@/lib/api";
-import { useAuth } from "@/context/AuthContext";
+import { useState } from "react";
 import { AddItemModal } from "@/components/AddItemModal";
 import { EditItemModal } from "@/components/EditItemModal";
-
-interface Product {
-    id: string;
-    title: string;
-    url?: string;
-    link?: string;
-    imageUrl?: string | null;
-    targetPrice?: number | null;
-    currentPrice?: number | null;
-    currency?: string;
-    brand?: string;
-    status?: string;
-}
+import { useProducts } from "@/hooks/useProducts";
+import { Product } from "@/types/product";
 
 export default function DashboardPage() {
-    const [products, setProducts] = useState<Product[]>([]);
-    const [loading, setLoading] = useState(true);
+    const {
+        products,
+        loading,
+        statusFilter,
+        setStatusFilter,
+        priorityFilter,
+        setPriorityFilter,
+        refreshProducts,
+        deleteProduct,
+        toggleProductStatus
+    } = useProducts();
+
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [editingItem, setEditingItem] = useState<Product | null>(null);
-    const { isAuthenticated } = useAuth();
-
-    const fetchProducts = useCallback(async () => {
-        if (!isAuthenticated) return;
-        try {
-            const { data } = await api.get("/buy");
-            // Backend returns { items: [], meta: { ... } }
-            // We need to map the backend items to our frontend Product interface
-            // handling the nested `metadata` JSON field.
-            const mappedProducts = (data.items || []).map((item: any) => ({
-                id: item.id,
-                title: item.title,
-                url: item.link,
-                link: item.link, // Keep both if needed or normalize
-                imageUrl: item.metadata?.imageUrl || null,
-                targetPrice: item.targetPrice,
-                // Check metadata for fetched price
-                currentPrice: item.metadata?.price || item.metadata?.lastCheckedPrice || null,
-                currency: item.metadata?.currency,
-                brand: item.metadata?.brand,
-                status: item.status,
-            }));
-            setProducts(mappedProducts);
-        } catch (err) {
-            console.error("Failed to fetch products", err);
-        } finally {
-            setLoading(false);
-        }
-    }, [isAuthenticated]);
-
-    useEffect(() => {
-        fetchProducts();
-    }, [fetchProducts]);
-
-    const handleDelete = async (id: string, e?: React.MouseEvent) => {
-        e?.stopPropagation(); // Just in case
-        if (!confirm("Are you sure you want to delete this item?")) return;
-
-        try {
-            await api.delete(`/buy/${id}`);
-            fetchProducts(); // Refresh list
-        } catch (err) {
-            console.error("Failed to delete item", err);
-            alert("Failed to delete item");
-        }
-    };
-
-    const handleToggleStatus = async (product: Product, e?: React.MouseEvent) => {
-        e?.stopPropagation();
-        const newStatus = product.status === "BOUGHT" ? "PLANNED" : "BOUGHT";
-
-        try {
-            await api.patch(`/buy/${product.id}/status`, { status: newStatus });
-            fetchProducts(); // Refresh list
-        } catch (err) {
-            console.error("Failed to update status", err);
-            alert("Failed to update status");
-        }
-    };
 
     if (loading) {
-        return <div className="container" style={{ padding: "4rem 0", textAlign: "center", color: "var(--muted-foreground)" }}>Loading your wishlist...</div>;
+        return (
+            <div className="container py-20 flex flex-col items-center justify-center min-h-[60vh]">
+                <div className="animate-pulse text-muted-foreground">Loading your wishlist...</div>
+            </div>
+        );
     }
 
+    const plannedCount = products.filter(p => p.status === "PLANNED").length;
+
     return (
-        <div className="container" style={{ paddingBottom: "4rem" }}>
-            <header
-                style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    padding: "2rem 0 3rem",
-                }}
-            >
-                <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
-                    <h1 style={{ fontSize: "1.5rem", fontWeight: 600 }}>My Wishlist</h1>
+        <div className="container py-12 md:py-20">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
+                <div>
+                    <h1 className="text-3xl md:text-4xl font-serif font-bold">Your Wishlist</h1>
+                    <p className="text-muted-foreground mt-2">
+                        {plannedCount} item{plannedCount !== 1 ? "s" : ""} to buy
+                    </p>
+                </div>
+                <Button onClick={() => setIsModalOpen(true)} size="lg">
+                    + Add Item
+                </Button>
+            </div>
+
+            {/* Filters */}
+            <div className="flex flex-wrap gap-4 mb-6 items-center">
+                <div className="flex items-center gap-2">
+                    <label className="text-sm font-medium text-muted-foreground">Status:</label>
+                    <select
+                        value={statusFilter}
+                        onChange={(e) => setStatusFilter(e.target.value)}
+                        className="px-3 py-1.5 text-sm border border-border rounded bg-background text-foreground"
+                    >
+                        <option value="all">All</option>
+                        <option value="PLANNED">Planned</option>
+                        <option value="BOUGHT">Bought</option>
+                    </select>
                 </div>
 
-                <div style={{ display: "flex", gap: "1rem" }}>
-                    <Button size="sm" onClick={() => setIsModalOpen(true)}>Add Item</Button>
+                <div className="flex items-center gap-2">
+                    <label className="text-sm font-medium text-muted-foreground">Priority:</label>
+                    <select
+                        value={priorityFilter}
+                        onChange={(e) => setPriorityFilter(e.target.value)}
+                        className="px-3 py-1.5 text-sm border border-border rounded bg-background text-foreground"
+                    >
+                        <option value="all">All</option>
+                        <option value="HIGH">High</option>
+                        <option value="MEDIUM">Medium</option>
+                        <option value="LOW">Low</option>
+                    </select>
                 </div>
-            </header>
+
+                {(statusFilter !== "all" || priorityFilter !== "all") && (
+                    <button
+                        onClick={() => {
+                            setStatusFilter("all");
+                            setPriorityFilter("all");
+                        }}
+                        className="text-sm text-muted-foreground hover:text-foreground underline"
+                    >
+                        Clear filters
+                    </button>
+                )}
+            </div>
 
             {products.length === 0 ? (
-                <div style={{ textAlign: "center", padding: "6rem 0", color: "var(--muted-foreground)" }}>
-                    <p style={{ marginBottom: "1.5rem", fontSize: "1.1rem" }}>Your wishlist is empty.</p>
-                    <Button onClick={() => setIsModalOpen(true)}>Add your first item</Button>
+                <div className="flex flex-col items-center justify-center min-h-[40vh] text-center">
+                    <p className="text-muted-foreground mb-4 text-lg">
+                        {statusFilter !== "all" || priorityFilter !== "all"
+                            ? "No items match your filters"
+                            : "Your wishlist is empty"}
+                    </p>
+                    {statusFilter === "all" && priorityFilter === "all" && (
+                        <Button onClick={() => setIsModalOpen(true)}>Add Your First Item</Button>
+                    )}
                 </div>
             ) : (
-                <div
-                    style={{
-                        display: "grid",
-                        gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
-                        gap: "2rem 1.5rem",
-                    }}
-                >
+                <div style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))",
+                    gap: "1.5rem"
+                }}>
                     {products.map((product) => (
-                        <Link key={product.id} href={`/product/${product.id}`} style={{ textDecoration: "none" }}>
+                        <Link key={product.id} href={`/product/${product.id}`} style={{ textDecoration: "none", color: "inherit" }}>
                             <ProductCard
                                 id={product.id}
-                                title={product.title || "Untitled Item"}
-                                brand={product.brand || "Unknown Brand"}
+                                title={product.title}
+                                brand={product.brand}
                                 price={
                                     product.currentPrice
-                                        ? `${product.currency || "$"}${product.currentPrice}`
+                                        ? `${product.currency || "₹"}${product.currentPrice.toLocaleString()}`
                                         : product.targetPrice
-                                            ? `Target: $${product.targetPrice}`
+                                            ? `Target: ${product.currency || "₹"}${product.targetPrice.toLocaleString()}`
                                             : "Price N/A"
                                 }
                                 imageUrl={product.imageUrl || undefined}
                                 status={product.status}
-                                onDelete={() => handleDelete(product.id)}
-                                onToggleStatus={() => handleToggleStatus(product)}
+                                priority={product.priority}
+                                onDelete={() => deleteProduct(product.id)}
+                                onToggleStatus={() => toggleProductStatus(product)}
                                 onEdit={(e) => {
-                                    e?.stopPropagation(); // Block link navigation
-                                    e?.preventDefault(); // Block link navigation
+                                    e?.stopPropagation();
+                                    e?.preventDefault();
                                     setEditingItem(product);
                                     setIsEditModalOpen(true);
                                 }}
@@ -156,13 +142,13 @@ export default function DashboardPage() {
             <AddItemModal
                 isOpen={isModalOpen}
                 onClose={() => setIsModalOpen(false)}
-                onSuccess={fetchProducts}
+                onSuccess={refreshProducts}
             />
 
             <EditItemModal
                 isOpen={isEditModalOpen}
                 onClose={() => setIsEditModalOpen(false)}
-                onSuccess={fetchProducts}
+                onSuccess={refreshProducts}
                 item={editingItem}
             />
         </div>

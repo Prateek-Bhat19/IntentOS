@@ -3,7 +3,7 @@ import { Outfit, Instrument_Serif } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
 import { ThemeProvider } from "@/context/ThemeContext";
-import ThemeToggle from "@/components/ThemeToggle";
+import { Header } from "@/components/Header";
 
 const outfit = Outfit({ subsets: ["latin"], variable: "--font-outfit" });
 const instrumentSerif = Instrument_Serif({
@@ -29,10 +29,7 @@ export default function RootLayout({
         <ThemeProvider>
           <AuthProvider>
             <div className="min-h-screen flex flex-col">
-              <header className="py-6 container flex justify-between items-center">
-                <div className="font-serif text-2xl tracking-tight">PACIFIC</div>
-                <ThemeToggle />
-              </header>
+              <Header />
               <main className="flex-1">
                 {children}
               </main>

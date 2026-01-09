@@ -20,6 +20,7 @@ router.patch(
   validate(changeStatusSchema),
   BuyController.changeStatus
 );
+router.post("/:id/refresh-metadata", BuyController.refreshMetadata);
 router.delete("/:id", BuyController.remove);
 
 export default router;

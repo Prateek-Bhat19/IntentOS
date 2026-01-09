@@ -1,0 +1,16 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const buy_controller_1 = require("../controllers/buy.controller");
+const auth_middleware_1 = require("../middlewares/auth.middleware");
+const validate_middleware_1 = require("../middlewares/validate.middleware");
+const buy_validation_1 = require("../validations/buy.validation");
+const router = (0, express_1.Router)();
+router.use(auth_middleware_1.requireAuth);
+router.post("/", (0, validate_middleware_1.validate)(buy_validation_1.createBuyItemSchema), buy_controller_1.BuyController.create);
+router.get("/", buy_controller_1.BuyController.list);
+router.put("/:id", (0, validate_middleware_1.validate)(buy_validation_1.updateBuyItemSchema), buy_controller_1.BuyController.update);
+router.patch("/:id/status", (0, validate_middleware_1.validate)(buy_validation_1.changeStatusSchema), buy_controller_1.BuyController.changeStatus);
+router.post("/:id/refresh-metadata", buy_controller_1.BuyController.refreshMetadata);
+router.delete("/:id", buy_controller_1.BuyController.remove);
+exports.default = router;

@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from "express";
 import { BuyService } from "../services/buy.service";
 import { BuyStatus } from "@prisma/client";
 import { listQuerySchema } from "../validations/query.validation";
+import { enqueueFetchMetadata } from "../queues/buy.queue";
 
 export class BuyController {
   static async create(req: Request, res: Response, next: NextFunction) {
@@ -54,6 +55,26 @@ export class BuyController {
     try {
       await BuyService.softDelete(req.user.id, req.params.id);
       res.status(204).send();
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  static async refreshMetadata(req: Request, res: Response, next: NextFunction) {
+    try {
+      const item = await BuyService.findById(req.params.id);
+      
+      if (!item || item.userId !== req.user.id) {
+        return res.status(404).json({ error: "Item not found" });
+      }
+
+      if (!item.link) {
+        return res.status(400).json({ error: "No link to refresh metadata from" });
+      }
+
+      await enqueueFetchMetadata(item.id);
+      
+      res.json({ message: "Metadata refresh queued successfully" });
     } catch (err) {
       next(err);
     }
