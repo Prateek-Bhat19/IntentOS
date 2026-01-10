@@ -1,7 +1,16 @@
 import axios from "axios";
 
+const getBaseUrl = () => {
+    const url = process.env.NEXT_PUBLIC_API_URL;
+    if (!url) return "/api"; // Default for local proxy
+    // If URL already ends with /api (with or without trailing slash), return it cleaned
+    if (url.match(/\/api\/?$/)) return url.replace(/\/$/, "");
+    // Otherwise append /api
+    return `${url.replace(/\/$/, "")}/api`;
+};
+
 const api = axios.create({
-    baseURL: process.env.NEXT_PUBLIC_API_URL || "/api", // Use env var for production, fallback to relative for proxy
+    baseURL: getBaseUrl(),
     headers: {
         "Content-Type": "application/json",
     },
