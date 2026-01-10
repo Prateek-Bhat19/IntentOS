@@ -8,13 +8,17 @@ import api from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 
 export default function SignupPage() {
+    const [name, setName] = useState("");
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [error, setError] = useState("");
     const [loading, setLoading] = useState(false);
     const { login } = useAuth();
 
-    const [name, setName] = useState("");
+    // Validation Rules
+    const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+    const isPasswordValid = password.length >= 8;
+    const isFormValid = isEmailValid && isPasswordValid && name.trim().length > 0;
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -22,7 +26,6 @@ export default function SignupPage() {
         setLoading(true);
 
         try {
-            // Backend currently takes email/password, sending name for future proofing or if schema allows
             const { data } = await api.post("/auth/signup", { email, password });
             login(data.token);
         } catch (err: any) {
@@ -52,26 +55,45 @@ export default function SignupPage() {
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                 />
-                <Input
-                    type="email"
-                    placeholder="name@example.com"
-                    label="Email"
-                    required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                />
-                <Input
-                    type="password"
-                    placeholder="••••••••"
-                    label="Password"
-                    required
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                />
+
+                <div>
+                    <Input
+                        type="email"
+                        placeholder="name@example.com"
+                        label="Email"
+                        required
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                    />
+                    {email && !isEmailValid && (
+                        <p style={{ fontSize: "0.8rem", color: "#e34d4d", marginTop: "0.3rem" }}>
+                            Please enter a valid email address.
+                        </p>
+                    )}
+                </div>
+
+                <div>
+                    <Input
+                        type="password"
+                        placeholder="••••••••"
+                        label="Password"
+                        required
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                    />
+                    <p style={{
+                        fontSize: "0.8rem",
+                        marginTop: "0.3rem",
+                        color: isPasswordValid ? "#10b981" : "var(--muted-foreground)",
+                        transition: "color 0.2s"
+                    }}>
+                        • Match at least 8 characters {isPasswordValid && "✅"}
+                    </p>
+                </div>
 
                 {error && <p style={{ color: "#e34d4d", fontSize: "0.9rem" }}>{error}</p>}
 
-                <Button size="lg" fullWidth style={{ marginTop: "0.5rem" }} disabled={loading}>
+                <Button size="lg" fullWidth style={{ marginTop: "0.5rem" }} disabled={loading || !isFormValid}>
                     {loading ? "Signing Up..." : "Sign Up"}
                 </Button>
             </form>
