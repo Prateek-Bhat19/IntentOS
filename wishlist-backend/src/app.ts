@@ -11,10 +11,15 @@ import healthRoutes from "./routes/health.routes";
 
 const app = express();
 
+import { env } from "./config/env";
+
 app.use(requestId);
 app.use(httpLogger);
 
-app.use(cors());
+app.use(cors({
+  origin: env.CORS_ORIGIN === "*" ? "*" : env.CORS_ORIGIN.split(","),
+  credentials: true,
+}));
 app.use(express.json());
 app.use("/", healthRoutes);
 app.use("/api/auth", authRoutes);

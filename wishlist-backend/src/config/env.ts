@@ -28,6 +28,9 @@ const envSchema = z.object({
   
   // Rate limiting per adapter (requests per minute)
   ADAPTER_RATE_LIMIT_RPM: z.coerce.number().default(60),
+
+  // Security
+  CORS_ORIGIN: z.string().default("*"),
 });
 
 export const env = envSchema.parse(process.env);
