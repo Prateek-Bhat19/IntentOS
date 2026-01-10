@@ -23,6 +23,9 @@ RUN npx prisma generate
 # Build the TypeScript code
 RUN npm run build
 
+# Switch ownership of everything to the puppeteer user
+RUN chown -R ppttruser:ppttruser /usr/src/app
+
 # Switch back to non-root user for security (provided by the base image)
 USER ppttruser
 
