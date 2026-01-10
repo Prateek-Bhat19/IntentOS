@@ -17,7 +17,24 @@ app.use(requestId);
 app.use(httpLogger);
 
 app.use(cors({
-  origin: env.CORS_ORIGIN === "*" ? "*" : env.CORS_ORIGIN.split(","),
+  origin: (origin, callback) => {
+    const allowed = env.CORS_ORIGIN === "*" ? "*" : env.CORS_ORIGIN.split(",").map(o => o.trim().replace(/\/$/, ""));
+    
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    if (allowed === "*") {
+      // If wildcard is set, allow any origin (reflects request origin)
+      return callback(null, true);
+    }
+    
+    if (allowed.includes(origin)) {
+      callback(null, true);
+    } else {
+      console.warn(`Blocked CORS for origin: ${origin}`);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true,
 }));
 app.use(express.json());
