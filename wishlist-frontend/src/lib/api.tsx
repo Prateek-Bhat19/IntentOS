@@ -1,7 +1,7 @@
 import axios from "axios";
 
 const api = axios.create({
-    baseURL: "/api", // Proxy in next.config or relative path if same domain
+    baseURL: process.env.NEXT_PUBLIC_API_URL || "/api", // Use env var for production, fallback to relative for proxy
     headers: {
         "Content-Type": "application/json",
     },
