@@ -53,5 +53,22 @@ services:
     environment:
       NEXT_PUBLIC_API_URL: http://localhost:8000
 
+  # BullMQ Worker (metadata + price fetching)
+  worker:
+    build:
+      context: ./wishlist-backend
+      dockerfile: Dockerfile
+    restart: always
+    depends_on:
+      - postgres
+      - redis
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgres://user:password@postgres:5432/wishlist?schema=public
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: dev_secret
+      ENABLE_REAL_ADAPTERS: "true"
+    command: ["node", "dist/workers/buy.worker.js"]
+
 volumes:
   postgres_data:

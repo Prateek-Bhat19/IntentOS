@@ -1,11 +1,19 @@
 import { IPriceAdapter } from './IPriceAdapter';
 import { MockPriceAdapter } from './MockPriceAdapter';
 import { OpenGraphPriceAdapter } from './OpenGraphPriceAdapter';
+import { AmazonPriceAdapter } from './AmazonPriceAdapter';
+import { FlipkartPriceAdapter } from './FlipkartPriceAdapter';
 import { adapterConfig } from '../config/adapterConfig';
 import { logger } from '../../logger';
 
 /**
- * Factory for creating and managing price adapters
+ * Factory for creating and managing price adapters.
+ *
+ * Priority order:
+ * 1. AmazonPriceAdapter   — Puppeteer+Stealth for amazon.in / amazon.com
+ * 2. FlipkartPriceAdapter — Puppeteer+Stealth for flipkart.com
+ * 3. OpenGraphPriceAdapter — HTML scraping fallback for other sites
+ * 4. MockPriceAdapter      — dev / testing
  */
 export class PriceAdapterFactory {
   private static adapters: IPriceAdapter[] = [];
@@ -26,14 +34,13 @@ export class PriceAdapterFactory {
     // Add real adapters based on environment
     if (adapterConfig.enableRealAdapters) {
       logger.info('Real price adapters enabled');
-      
-      // Add OpenGraph price adapter (universal fallback)
+
+      // Site-specific Puppeteer scrapers (higher priority — bypass bot detection)
+      this.adapters.push(new AmazonPriceAdapter());
+      this.adapters.push(new FlipkartPriceAdapter());
+
+      // OpenGraph HTML scraping as a generic fallback for other sites
       this.adapters.push(new OpenGraphPriceAdapter());
-      
-      // TODO: Add real price adapters when implemented
-      // if (adapterConfig.canopyApiKey) {
-      //   this.adapters.push(new CanopyPriceAdapter());
-      // }
     } else {
       logger.info('Using mock price adapters only');
     }

@@ -128,13 +128,12 @@ export class MetadataAdapterFactory {
         )
       );
       
-      // Add Playwright as modern universal fallback
-      this.adapters.push(
-        new RateLimitedCachedMetadataAdapter(
-          new PlaywrightAdapter(),
-          'Playwright'
-        )
-      );
+      // PlaywrightAdapter disabled — requires separate `npx playwright install` download.
+      // Amazon & Flipkart are covered by Puppeteer above; other sites use OpenGraph below.
+      // Uncomment below if you want Playwright as a universal fallback for other sites:
+      // this.adapters.push(
+      //   new RateLimitedCachedMetadataAdapter(new PlaywrightAdapter(), 'Playwright')
+      // );
       
       // Add OpenGraph as basic fallback
       this.adapters.push(

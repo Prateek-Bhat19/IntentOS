@@ -7,6 +7,7 @@ export interface Product {
     imageUrl?: string | null;
     images?: string[];
     currentPrice?: number | null;
+    originalPrice?: number | null;
     targetPrice?: number | null;
     currency?: string;
     description?: string;
@@ -19,4 +20,5 @@ export interface Product {
     highlights?: string[];
     specifications?: Record<string, string>;
     lastChecked?: string;
+    notes?: string | null;
 }

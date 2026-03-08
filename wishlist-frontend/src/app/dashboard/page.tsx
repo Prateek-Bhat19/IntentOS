@@ -3,12 +3,87 @@
 import Link from "next/link";
 import { ProductCard } from "@/components/ui/ProductCard";
 import { Button } from "@/components/ui/Button";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { AddItemModal } from "@/components/AddItemModal";
 import { EditItemModal } from "@/components/EditItemModal";
 import { useProducts } from "@/hooks/useProducts";
 import { Product } from "@/types/product";
 
+/* ── Toast helper ─────────────────────────────────────────────────── */
+type ToastType = { msg: string; kind: "success" | "error" } | null;
+
+function useToast() {
+    const [toast, setToast] = useState<ToastType>(null);
+    const show = (msg: string, kind: "success" | "error" = "success") => {
+        setToast({ msg, kind });
+        setTimeout(() => setToast(null), 3000);
+    };
+    return { toast, show };
+}
+
+/* ── Skeleton card ────────────────────────────────────────────────── */
+function SkeletonCard() {
+    return (
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+            <div className="skeleton" style={{ aspectRatio: "3/4", width: "100%" }} />
+            <div className="skeleton" style={{ height: "0.7rem", width: "40%", borderRadius: "4px" }} />
+            <div className="skeleton" style={{ height: "0.85rem", width: "90%", borderRadius: "4px" }} />
+            <div className="skeleton" style={{ height: "0.85rem", width: "60%", borderRadius: "4px" }} />
+        </div>
+    );
+}
+
+/* ── Stat card ────────────────────────────────────────────────────── */
+function StatCard({ label, value, sub }: { label: string; value: string | number; sub?: string }) {
+    return (
+        <div style={{
+            padding: "1.25rem 1.5rem",
+            background: "var(--card)",
+            border: "1px solid var(--border)",
+            borderRadius: "var(--radius)",
+            display: "flex",
+            flexDirection: "column",
+            gap: "0.25rem",
+        }}>
+            <span style={{ fontSize: "0.72rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--muted-foreground)" }}>
+                {label}
+            </span>
+            <span style={{ fontSize: "1.75rem", fontWeight: 700, color: "var(--foreground)", lineHeight: 1.1 }}>
+                {value}
+            </span>
+            {sub && <span style={{ fontSize: "0.75rem", color: "var(--muted-foreground)" }}>{sub}</span>}
+        </div>
+    );
+}
+
+/* ── Filter pill group ────────────────────────────────────────────── */
+function PillGroup<T extends string>({
+    label, options, value, onChange,
+}: {
+    label: string;
+    options: { label: string; value: T }[];
+    value: T;
+    onChange: (v: T) => void;
+}) {
+    return (
+        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
+            <span style={{ fontSize: "0.75rem", fontWeight: 600, color: "var(--muted-foreground)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                {label}
+            </span>
+            {options.map((opt) => (
+                <button
+                    key={opt.value}
+                    className={`filter-tab${value === opt.value ? " active" : ""}`}
+                    onClick={() => onChange(opt.value)}
+                >
+                    {opt.label}
+                </button>
+            ))}
+        </div>
+    );
+}
+
+/* ── Main page ────────────────────────────────────────────────────── */
 export default function DashboardPage() {
     const {
         products,
@@ -18,83 +93,121 @@ export default function DashboardPage() {
         priorityFilter,
         setPriorityFilter,
         refreshProducts,
-        deleteProduct,
-        toggleProductStatus
+        deleteProduct: _deleteProduct,
+        toggleProductStatus: _toggleProductStatus,
     } = useProducts();
+
+    const { toast, show: showToast } = useToast();
 
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [editingItem, setEditingItem] = useState<Product | null>(null);
 
-    if (loading) {
-        return (
-            <div className="container py-20 flex flex-col items-center justify-center min-h-[60vh]">
-                <div className="animate-pulse text-muted-foreground">Loading your wishlist...</div>
-            </div>
-        );
-    }
+    /* Wrapped delete with toast */
+    const deleteProduct = async (id: string) => {
+        if (!window.confirm("Delete this item?")) return;
+        try {
+            await _deleteProduct(id);
+            showToast("Item deleted");
+        } catch {
+            showToast("Failed to delete", "error");
+        }
+    };
 
-    const plannedCount = products.filter(p => p.status === "PLANNED").length;
+    /* Wrapped toggle with toast */
+    const toggleProductStatus = async (product: Product) => {
+        try {
+            await _toggleProductStatus(product);
+            const next = product.status === "BOUGHT" ? "Planned" : "Bought";
+            showToast(`Marked as ${next} ✓`);
+        } catch {
+            showToast("Failed to update status", "error");
+        }
+    };
+
+    /* Stats */
+    const allItems = products;
+    const planned = allItems.filter(p => p.status === "PLANNED");
+    const bought = allItems.filter(p => p.status === "BOUGHT");
+    const totalValue = planned
+        .reduce((sum, p) => sum + (p.currentPrice || p.targetPrice || 0), 0);
 
     return (
         <div className="container py-12 md:py-20">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
+
+            {/* ── Header ─────────────────────────────────────────── */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "2rem", flexWrap: "wrap", gap: "1rem" }}>
                 <div>
                     <h1 className="text-3xl md:text-4xl font-serif font-bold">Your Wishlist</h1>
-                    <p className="text-muted-foreground mt-2">
-                        {plannedCount} item{plannedCount !== 1 ? "s" : ""} to buy
+                    <p style={{ color: "var(--muted-foreground)", marginTop: "0.25rem", fontSize: "0.9rem" }}>
+                        {planned.length} item{planned.length !== 1 ? "s" : ""} to buy
                     </p>
                 </div>
-                <Button onClick={() => setIsModalOpen(true)} size="lg">
-                    + Add Item
-                </Button>
+                <Button onClick={() => setIsModalOpen(true)} size="lg">+ Add Item</Button>
             </div>
 
-            {/* Filters */}
-            <div className="flex flex-wrap gap-4 mb-6 items-center">
-                <div className="flex items-center gap-2">
-                    <label className="text-sm font-medium text-muted-foreground">Status:</label>
-                    <select
-                        value={statusFilter}
-                        onChange={(e) => setStatusFilter(e.target.value)}
-                        className="px-3 py-1.5 text-sm border border-border rounded bg-background text-foreground"
-                    >
-                        <option value="all">All</option>
-                        <option value="PLANNED">Planned</option>
-                        <option value="BOUGHT">Bought</option>
-                    </select>
-                </div>
+            {/* ── Stats row ──────────────────────────────────────── */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "1rem", marginBottom: "2rem" }}>
+                <StatCard label="Total Items" value={allItems.length} />
+                <StatCard
+                    label="Planned Value"
+                    value={totalValue > 0 ? `₹${totalValue.toLocaleString()}` : "—"}
+                    sub="based on current prices"
+                />
+                <StatCard
+                    label="Bought"
+                    value={bought.length}
+                    sub={allItems.length > 0 ? `${Math.round((bought.length / allItems.length) * 100)}% of list` : ""}
+                />
+            </div>
 
-                <div className="flex items-center gap-2">
-                    <label className="text-sm font-medium text-muted-foreground">Priority:</label>
-                    <select
-                        value={priorityFilter}
-                        onChange={(e) => setPriorityFilter(e.target.value)}
-                        className="px-3 py-1.5 text-sm border border-border rounded bg-background text-foreground"
-                    >
-                        <option value="all">All</option>
-                        <option value="HIGH">High</option>
-                        <option value="MEDIUM">Medium</option>
-                        <option value="LOW">Low</option>
-                    </select>
-                </div>
-
+            {/* ── Filters ────────────────────────────────────────── */}
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "1rem", marginBottom: "1.75rem", alignItems: "center" }}>
+                <PillGroup
+                    label="Status"
+                    options={[
+                        { label: "All", value: "all" },
+                        { label: "Planned", value: "PLANNED" },
+                        { label: "Bought", value: "BOUGHT" },
+                    ]}
+                    value={statusFilter as any}
+                    onChange={setStatusFilter}
+                />
+                <div style={{ width: "1px", height: "1.5rem", background: "var(--border)" }} />
+                <PillGroup
+                    label="Priority"
+                    options={[
+                        { label: "All", value: "all" },
+                        { label: "High", value: "HIGH" },
+                        { label: "Medium", value: "MEDIUM" },
+                        { label: "Low", value: "LOW" },
+                    ]}
+                    value={priorityFilter as any}
+                    onChange={setPriorityFilter}
+                />
                 {(statusFilter !== "all" || priorityFilter !== "all") && (
                     <button
-                        onClick={() => {
-                            setStatusFilter("all");
-                            setPriorityFilter("all");
-                        }}
-                        className="text-sm text-muted-foreground hover:text-foreground underline"
+                        onClick={() => { setStatusFilter("all"); setPriorityFilter("all"); }}
+                        style={{ fontSize: "0.8rem", color: "var(--muted-foreground)", textDecoration: "underline", background: "none", border: "none", cursor: "pointer" }}
                     >
                         Clear filters
                     </button>
                 )}
             </div>
 
-            {products.length === 0 ? (
-                <div className="flex flex-col items-center justify-center min-h-[40vh] text-center">
-                    <p className="text-muted-foreground mb-4 text-lg">
+            {/* ── Content ────────────────────────────────────────── */}
+            {loading ? (
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: "1.5rem" }}>
+                    {Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)}
+                </div>
+            ) : products.length === 0 ? (
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "40vh", textAlign: "center" }}>
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" style={{ color: "var(--muted-foreground)", marginBottom: "1rem", opacity: 0.5 }}>
+                        <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z" />
+                        <line x1="3" y1="6" x2="21" y2="6" />
+                        <path d="M16 10a4 4 0 0 1-8 0" />
+                    </svg>
+                    <p style={{ color: "var(--muted-foreground)", marginBottom: "1rem", fontSize: "1.05rem" }}>
                         {statusFilter !== "all" || priorityFilter !== "all"
                             ? "No items match your filters"
                             : "Your wishlist is empty"}
@@ -104,11 +217,7 @@ export default function DashboardPage() {
                     )}
                 </div>
             ) : (
-                <div style={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))",
-                    gap: "1.5rem"
-                }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: "1.5rem" }}>
                     {products.map((product) => (
                         <Link key={product.id} href={`/product/${product.id}`} style={{ textDecoration: "none", color: "inherit" }}>
                             <ProductCard
@@ -120,37 +229,42 @@ export default function DashboardPage() {
                                         ? `${product.currency || "₹"}${product.currentPrice.toLocaleString()}`
                                         : product.targetPrice
                                             ? `Target: ${product.currency || "₹"}${product.targetPrice.toLocaleString()}`
-                                            : "Price N/A"
+                                            : undefined
                                 }
+                                originalPrice={product.originalPrice}
+                                targetPrice={product.targetPrice || undefined}
+                                currency={product.currency || "₹"}
                                 imageUrl={product.imageUrl || undefined}
                                 status={product.status}
                                 priority={product.priority}
-                                onDelete={() => deleteProduct(product.id)}
-                                onToggleStatus={() => toggleProductStatus(product)}
-                                onEdit={(e) => {
-                                    e?.stopPropagation();
-                                    e?.preventDefault();
-                                    setEditingItem(product);
-                                    setIsEditModalOpen(true);
-                                }}
+                                onDelete={(e) => { e?.stopPropagation(); e?.preventDefault(); deleteProduct(product.id); }}
+                                onToggleStatus={(e) => { e?.stopPropagation(); e?.preventDefault(); toggleProductStatus(product); }}
+                                onEdit={(e) => { e?.stopPropagation(); e?.preventDefault(); setEditingItem(product); setIsEditModalOpen(true); }}
                             />
                         </Link>
                     ))}
                 </div>
             )}
 
+            {/* ── Modals ─────────────────────────────────────────── */}
             <AddItemModal
                 isOpen={isModalOpen}
                 onClose={() => setIsModalOpen(false)}
-                onSuccess={refreshProducts}
+                onSuccess={() => { refreshProducts(); showToast("Item added ✓"); }}
             />
-
             <EditItemModal
                 isOpen={isEditModalOpen}
                 onClose={() => setIsEditModalOpen(false)}
-                onSuccess={refreshProducts}
+                onSuccess={() => { refreshProducts(); showToast("Item updated ✓"); }}
                 item={editingItem}
             />
+
+            {/* ── Toast ──────────────────────────────────────────── */}
+            {toast && (
+                <div className={`toast toast-${toast.kind}`}>
+                    {toast.kind === "success" ? "✓" : "✕"} {toast.msg}
+                </div>
+            )}
         </div>
     );
 }

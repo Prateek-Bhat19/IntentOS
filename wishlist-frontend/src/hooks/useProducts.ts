@@ -27,10 +27,12 @@ export function useProducts() {
                 imageUrl: item.metadata?.imageUrl || item.metadata?.images?.[0] || null,
                 targetPrice: item.targetPrice,
                 currentPrice: item.metadata?.price || item.metadata?.lastCheckedPrice || null,
+                originalPrice: item.metadata?.originalPrice || null,
                 currency: item.metadata?.currency,
                 brand: item.metadata?.brand,
                 status: item.status,
                 priority: item.priority,
+                notes: item.notes || null,
             }));
             setProducts(mappedProducts);
         } catch (err) {
