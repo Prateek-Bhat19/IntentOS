@@ -63,9 +63,12 @@ class RateLimitedCachedMetadataAdapter implements IMetadataAdapter {
     );
     const result = await this.adapter.fetchMetadata(url);
 
-    // 4. Cache successful results
+    // 4. Cache successful results; refund token on failure
     if (result.success && result.data) {
       await setCachedMetadata(url, result.data);
+    } else {
+      // Refund the token — failures shouldn't drain the rate limit bucket
+      await rateLimiter.release();
     }
 
     return result;
@@ -186,6 +189,47 @@ export class MetadataAdapterFactory {
     const mockAdapter = this.adapters.find((adapter) => adapter.name === 'Mock')!;
     logger.warn({ url }, 'No adapter found, using Mock');
     return mockAdapter;
+  }
+
+  /**
+   * Try all matching adapters in priority order, falling back on failure.
+   * This is the recommended method to use instead of getAdapter() + fetchMetadata().
+   */
+  static async fetchWithFallback(url: string): Promise<MetadataFetchResult> {
+    if (!this.initialized) {
+      this.initialize();
+    }
+
+    const matching = this.adapters.filter(a => a.canHandle(url));
+
+    if (matching.length === 0) {
+      logger.warn({ url }, 'No adapters can handle URL');
+      return {
+        success: false,
+        error: new (await import('../errors/AdapterError')).AdapterError(
+          'UNKNOWN_ERROR' as any,
+          `No adapter found for URL: ${url}`,
+          false
+        )
+      };
+    }
+
+    let lastError: any;
+    for (const adapter of matching) {
+      logger.info({ adapter: adapter.name, url }, 'Trying adapter');
+      const result = await adapter.fetchMetadata(url);
+      if (result.success) {
+        return result;
+      }
+      logger.warn(
+        { adapter: adapter.name, url, error: result.error?.message },
+        'Adapter failed, trying next'
+      );
+      lastError = result.error;
+    }
+
+    logger.error({ url, error: lastError?.message }, 'All adapters failed');
+    return { success: false, error: lastError };
   }
 
   /**

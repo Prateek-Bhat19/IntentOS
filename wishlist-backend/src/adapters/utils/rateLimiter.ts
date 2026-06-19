@@ -52,6 +52,21 @@ export class RateLimiter {
   }
 
   /**
+   * Refund a token when a request fails (e.g. scraper error, not bot detection).
+   * This prevents retries from draining the bucket unnecessarily.
+   */
+  async release(): Promise<void> {
+    try {
+      const tokens = await redis.get(this.tokensKey);
+      const currentTokens = tokens ? parseFloat(tokens) : this.config.maxTokens;
+      const newTokens = Math.min(currentTokens + 1, this.config.maxTokens);
+      await redis.set(this.tokensKey, newTokens.toString());
+    } catch {
+      // Best-effort refund
+    }
+  }
+
+  /**
    * Refill tokens based on time elapsed
    */
   private async refillTokens(): Promise<void> {

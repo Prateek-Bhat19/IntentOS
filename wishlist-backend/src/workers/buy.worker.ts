@@ -27,7 +27,6 @@ const worker = new Worker(
       case BuyJobTypes.FETCH_METADATA: {
         const { buyItemId } = job.data as { buyItemId: string };
 
-        // Get the item to extract URL
         const item = await BuyService.findById(buyItemId);
         
         if (!item) {
@@ -38,21 +37,17 @@ const worker = new Worker(
           throw new UnrecoverableError("No link found for item");
         }
 
-        // Get appropriate adapter
-        const adapter = MetadataAdapterFactory.getAdapter(item.link);
-        
         logger.info(
-          { adapter: adapter.name, url: item.link, itemId: buyItemId },
-          "Fetching metadata"
+          { url: item.link, itemId: buyItemId },
+          "Fetching metadata with fallback chain"
         );
 
-        // Fetch metadata
-        const result = await adapter.fetchMetadata(item.link);
+        // fetchWithFallback tries each matching adapter in priority order
+        const result = await MetadataAdapterFactory.fetchWithFallback(item.link);
 
         if (!result.success) {
           const error = result.error!;
           
-          // Enhanced logging
           logger.error(
             {
               jobId: job.id,
@@ -61,18 +56,16 @@ const worker = new Worker(
               attemptsMade: job.attemptsMade,
               message: error.message,
             },
-            "Metadata fetch failed"
+            "All adapters failed for metadata fetch"
           );
 
-          // Propagate error correctly
           if (error.isRetryable) {
-            throw new Error(error.message); // BullMQ will retry
+            throw new Error(error.message);
           } else {
-            throw new UnrecoverableError(error.message); // Move to failed/DLQ
+            throw new UnrecoverableError(error.message);
           }
         }
 
-        // Save metadata
         await BuyService.attachMetadata(buyItemId, result.data! as any);
         
         logger.info(
@@ -82,6 +75,7 @@ const worker = new Worker(
 
         break;
       }
+
 
       case BuyJobTypes.CHECK_PRICE: {
         const { buyItemId } = job.data as { buyItemId: string };

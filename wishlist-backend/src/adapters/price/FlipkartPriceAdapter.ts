@@ -1,5 +1,6 @@
 import puppeteer from 'puppeteer-extra';
 import StealthPlugin from 'puppeteer-extra-plugin-stealth';
+import { executablePath } from 'puppeteer';
 import { IPriceAdapter, PriceCheckResult } from './IPriceAdapter';
 import { AdapterError, ErrorType } from '../errors/AdapterError';
 import { matchesDomain } from '../utils/urlParser';
@@ -8,15 +9,49 @@ import { logger } from '../../logger';
 // Add stealth plugin to evade bot detection
 puppeteer.use(StealthPlugin());
 
+// Plain string script — bypasses esbuild __name injection in tsx/esbuild
+const FLIPKART_PRICE_SCRIPT = `(function() {
+  function getText(selector) {
+    var el = document.querySelector(selector);
+    return el ? (el.textContent || '').trim() || undefined : undefined;
+  }
+
+  var priceStr;
+  var priceSelectors = ['div._30jeq3', '._16Jk6d', '._25b18c ._30jeq3', '._1vC4OE', '.selling-price'];
+  for (var i = 0; i < priceSelectors.length; i++) {
+    var t = getText(priceSelectors[i]);
+    if (t) { priceStr = t; break; }
+  }
+
+  var originalPriceStr;
+  var originalSelectors = ['._3I9_wc', '._2p6lqe', '.Zi1Hm7'];
+  for (var j = 0; j < originalSelectors.length; j++) {
+    var ot = getText(originalSelectors[j]);
+    if (ot) { originalPriceStr = ot; break; }
+  }
+
+  var addToCartText = (getText('._2KpZ6l') || '').toLowerCase();
+  var availability = 'UNKNOWN';
+  if (addToCartText.indexOf('add to cart') !== -1 || addToCartText.indexOf('buy now') !== -1) {
+    availability = 'IN_STOCK';
+  } else if (addToCartText.indexOf('notify me') !== -1) {
+    availability = 'OUT_OF_STOCK';
+  } else {
+    var bodyText = (document.body && document.body.textContent || '').toLowerCase();
+    if (bodyText.indexOf('out of stock') !== -1) availability = 'OUT_OF_STOCK';
+  }
+
+  return { priceStr: priceStr, originalPriceStr: originalPriceStr, availability: availability };
+})()`;
+
 /**
  * Flipkart price adapter using Puppeteer with stealth mode.
- * Bypasses bot detection that blocks the simple axios-based approach.
  */
 export class FlipkartPriceAdapter implements IPriceAdapter {
   readonly name = 'FlipkartPrice (Stealth)';
 
   canHandle(url: string): boolean {
-    return matchesDomain(url, ['*.flipkart.com']);
+    return matchesDomain(url, ['flipkart.com', '*.flipkart.com']);
   }
 
   async checkPrice(url: string): Promise<PriceCheckResult> {
@@ -25,6 +60,7 @@ export class FlipkartPriceAdapter implements IPriceAdapter {
     let browser;
     try {
       browser = await puppeteer.launch({
+        executablePath: executablePath(),
         headless: true,
         args: [
           '--no-sandbox',
@@ -49,62 +85,18 @@ export class FlipkartPriceAdapter implements IPriceAdapter {
         });
       }
 
-      // Wait for price element
       await page
         .waitForSelector('div._30jeq3, ._16Jk6d', { timeout: 5000 })
         .catch(() => {
           logger.warn({ url }, 'Flipkart price selector not found immediately, continuing anyway');
         });
 
-      const priceData = await page.evaluate(() => {
-        const getText = (selector: string) => {
-          const el = document.querySelector(selector);
-          return el?.textContent?.trim() || undefined;
-        };
-
-        // ── Current Price ──────────────────────────────────────────────────────
-        // Flipkart uses obfuscated class names that change periodically;
-        // we try multiple known ones for resilience.
-        let priceStr: string | undefined;
-        const priceSelectors = [
-          'div._30jeq3',           // Primary selling price (most reliable)
-          '._16Jk6d',              // Alternate
-          '._25b18c ._30jeq3',     // With parent context
-          '._1vC4OE',              // Fallback
-          '.selling-price',
-        ];
-        for (const sel of priceSelectors) {
-          const text = getText(sel);
-          if (text) { priceStr = text; break; }
-        }
-
-        // ── Original / MRP Price ───────────────────────────────────────────────
-        let originalPriceStr: string | undefined;
-        const originalSelectors = [
-          '._3I9_wc',              // Strikethrough MRP
-          '._2p6lqe',              // Alternate MRP
-          '.Zi1Hm7',               // Another known variant
-        ];
-        for (const sel of originalSelectors) {
-          const text = getText(sel);
-          if (text) { originalPriceStr = text; break; }
-        }
-
-        // ── Availability ───────────────────────────────────────────────────────
-        const addToCartText = (getText('._2KpZ6l') || '').toLowerCase();
-        let availability: 'IN_STOCK' | 'OUT_OF_STOCK' | 'UNKNOWN' = 'UNKNOWN';
-        if (addToCartText.includes('add to cart') || addToCartText.includes('buy now')) {
-          availability = 'IN_STOCK';
-        } else if (addToCartText.includes('notify me')) {
-          availability = 'OUT_OF_STOCK';
-        } else {
-          // Fallback: check page text
-          const bodyText = (document.body?.textContent || '').toLowerCase();
-          if (bodyText.includes('out of stock')) availability = 'OUT_OF_STOCK';
-        }
-
-        return { priceStr, originalPriceStr, availability };
-      });
+      // Use plain string to bypass esbuild __name injection
+      const priceData = await page.evaluate(FLIPKART_PRICE_SCRIPT) as {
+        priceStr?: string;
+        originalPriceStr?: string;
+        availability: 'IN_STOCK' | 'OUT_OF_STOCK' | 'UNKNOWN';
+      };
 
       if (!priceData.priceStr) {
         return {

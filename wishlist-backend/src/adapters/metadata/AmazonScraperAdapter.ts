@@ -16,7 +16,13 @@ export class AmazonScraperAdapter implements IMetadataAdapter {
   private httpClient = createHttpClient({ timeout: adapterConfig.timeoutMs });
 
   canHandle(url: string): boolean {
-    return matchesDomain(url, ['*.amazon.in', '*.amazon.com', '*.amazon.co.uk']);
+    return matchesDomain(url, [
+      'amazon.in', '*.amazon.in', 
+      'amazon.com', '*.amazon.com', 
+      'amazon.co.uk', '*.amazon.co.uk',
+      'amzn.in', '*.amzn.in',
+      'amzn.to', '*.amzn.to'
+    ]);
   }
 
   async fetchMetadata(url: string): Promise<MetadataFetchResult> {

@@ -1,4 +1,4 @@
-import { getCache, setCache } from '../../redis/cache';
+import { getCache, setCache, deleteByPattern } from '../../redis/cache';
 import { normalizeUrl } from './urlParser';
 import { logger } from '../../logger';
 import type { ProductMetadata } from '../metadata/IMetadataAdapter';
@@ -111,10 +111,8 @@ export async function invalidateMetadataCache(url: string): Promise<void> {
   try {
     const normalizedUrl = normalizeUrl(url);
     const cacheKey = `product:metadata:${normalizedUrl}`;
-
-    // Note: deleteByPattern not available, so we'd need to implement cache invalidation
-    // For now, just log - cache will expire naturally
-    logger.debug({ url, cacheKey }, 'Metadata cache invalidation requested');
+    await deleteByPattern(cacheKey);
+    logger.debug({ url, cacheKey }, 'Metadata cache invalidated');
   } catch (error) {
     logger.error({ error, url }, 'Error invalidating metadata cache');
   }
@@ -127,8 +125,8 @@ export async function invalidatePriceCache(url: string): Promise<void> {
   try {
     const normalizedUrl = normalizeUrl(url);
     const cacheKey = `product:price:${normalizedUrl}`;
-
-    logger.debug({ url, cacheKey }, 'Price cache invalidation requested');
+    await deleteByPattern(cacheKey);
+    logger.debug({ url, cacheKey }, 'Price cache invalidated');
   } catch (error) {
     logger.error({ error, url }, 'Error invalidating price cache');
   }

@@ -1,5 +1,6 @@
 import puppeteer from 'puppeteer-extra';
 import StealthPlugin from 'puppeteer-extra-plugin-stealth';
+import { executablePath } from 'puppeteer';
 import { IPriceAdapter, PriceCheckResult } from './IPriceAdapter';
 import { AdapterError, ErrorType } from '../errors/AdapterError';
 import { matchesDomain } from '../utils/urlParser';
@@ -8,15 +9,68 @@ import { logger } from '../../logger';
 // Add stealth plugin to evade bot detection
 puppeteer.use(StealthPlugin());
 
+// Plain string script — bypasses esbuild __name injection in tsx/esbuild
+const AMAZON_PRICE_SCRIPT = `(function() {
+  function getText(selector) {
+    var el = document.querySelector(selector);
+    return el ? (el.textContent || '').trim() || undefined : undefined;
+  }
+  function getAttr(selector, attr) {
+    var el = document.querySelector(selector);
+    return el ? el.getAttribute(attr) || undefined : undefined;
+  }
+
+  var priceStr;
+  var priceSelectors = [
+    '.priceToPay .a-price-whole',
+    '.a-price-whole',
+    '#priceblock_ourprice',
+    '#priceblock_dealprice',
+    '.a-price .a-offscreen',
+    'span.a-price-whole'
+  ];
+  for (var i = 0; i < priceSelectors.length; i++) {
+    var t = getText(priceSelectors[i]);
+    if (t) { priceStr = t; break; }
+  }
+
+  var originalPriceStr;
+  var originalSelectors = ['.a-text-price .a-offscreen', '#listPrice', '.basisPrice .a-offscreen'];
+  for (var j = 0; j < originalSelectors.length; j++) {
+    var ot = getText(originalSelectors[j]);
+    if (ot) { originalPriceStr = ot; break; }
+  }
+
+  var availText = (getText('#availability') || '').toLowerCase();
+  var availability = 'UNKNOWN';
+  if (availText.indexOf('in stock') !== -1 || document.querySelector('#add-to-cart-button')) {
+    availability = 'IN_STOCK';
+  } else if (availText.indexOf('out of stock') !== -1 || availText.indexOf('unavailable') !== -1) {
+    availability = 'OUT_OF_STOCK';
+  }
+
+  var currency = getAttr('meta[property="product:price:currency"]', 'content') ||
+    (window.location.hostname.indexOf('.in') !== -1 ? 'INR' : 'USD');
+
+  var hasCaptcha = !!document.querySelector('#captchacharacters');
+
+  return { priceStr: priceStr, originalPriceStr: originalPriceStr, availability: availability, currency: currency, hasCaptcha: hasCaptcha };
+})()`;
+
 /**
  * Amazon price adapter using Puppeteer with stealth mode.
- * Bypasses bot detection that blocks the simple axios-based approach.
  */
 export class AmazonPriceAdapter implements IPriceAdapter {
   readonly name = 'AmazonPrice (Stealth)';
 
   canHandle(url: string): boolean {
-    return matchesDomain(url, ['*.amazon.in', '*.amazon.com', '*.amazon.co.uk']);
+    return matchesDomain(url, [
+      'amazon.in', '*.amazon.in',
+      'amazon.com', '*.amazon.com',
+      'amazon.co.uk', '*.amazon.co.uk',
+      'amzn.in', '*.amzn.in',
+      'amzn.to', '*.amzn.to'
+    ]);
   }
 
   async checkPrice(url: string): Promise<PriceCheckResult> {
@@ -25,6 +79,7 @@ export class AmazonPriceAdapter implements IPriceAdapter {
     let browser;
     try {
       browser = await puppeteer.launch({
+        executablePath: executablePath(),
         headless: true,
         args: [
           '--no-sandbox',
@@ -49,79 +104,26 @@ export class AmazonPriceAdapter implements IPriceAdapter {
         });
       }
 
-      // Wait for price element to appear
       await page.waitForSelector('.a-price-whole, #priceblock_ourprice, #priceblock_dealprice', {
         timeout: 5000,
       }).catch(() => {
         logger.warn({ url }, 'Price selector not found immediately, continuing anyway');
       });
 
-      const priceData = await page.evaluate(() => {
-        const getText = (selector: string) => {
-          const el = document.querySelector(selector);
-          return el?.textContent?.trim() || undefined;
-        };
-        const getAttr = (selector: string, attr: string) => {
-          const el = document.querySelector(selector);
-          return el?.getAttribute(attr) || undefined;
-        };
-
-        // ── Current Price ──────────────────────────────────────────────────────
-        let priceStr: string | undefined;
-        const priceSelectors = [
-          '.priceToPay .a-price-whole',      // Buy Now price (most reliable)
-          '.a-price-whole',                   // Generic price-whole
-          '#priceblock_ourprice',             // Old layout
-          '#priceblock_dealprice',            // Deal price
-          '.a-price .a-offscreen',            // Screen-reader price (includes paise)
-          'span.a-price-whole',
-        ];
-        for (const sel of priceSelectors) {
-          const text = getText(sel);
-          if (text) { priceStr = text; break; }
-        }
-
-        // ── Original / MRP Price ───────────────────────────────────────────────
-        let originalPriceStr: string | undefined;
-        const originalSelectors = [
-          '.a-text-price .a-offscreen',       // Strikethrough price
-          '#listPrice',
-          '.basisPrice .a-offscreen',
-        ];
-        for (const sel of originalSelectors) {
-          const text = getText(sel);
-          if (text) { originalPriceStr = text; break; }
-        }
-
-        // ── Availability ───────────────────────────────────────────────────────
-        const availText = (getText('#availability') || '').toLowerCase();
-        let availability: 'IN_STOCK' | 'OUT_OF_STOCK' | 'UNKNOWN' = 'UNKNOWN';
-        if (availText.includes('in stock') || !!document.querySelector('#add-to-cart-button')) {
-          availability = 'IN_STOCK';
-        } else if (availText.includes('out of stock') || availText.includes('unavailable')) {
-          availability = 'OUT_OF_STOCK';
-        }
-
-        // ── Currency ───────────────────────────────────────────────────────────
-        const currency =
-          getAttr('meta[property="product:price:currency"]', 'content') ||
-          (window.location.hostname.includes('.in') ? 'INR' : 'USD');
-
-        // ── CAPTCHA detection ──────────────────────────────────────────────────
-        const hasCaptcha = !!document.querySelector('#captchacharacters');
-
-        return { priceStr, originalPriceStr, availability, currency, hasCaptcha };
-      });
+      // Use plain string to bypass esbuild __name injection
+      const priceData = await page.evaluate(AMAZON_PRICE_SCRIPT) as {
+        priceStr?: string;
+        originalPriceStr?: string;
+        availability: 'IN_STOCK' | 'OUT_OF_STOCK' | 'UNKNOWN';
+        currency: string;
+        hasCaptcha: boolean;
+      };
 
       if (priceData.hasCaptcha) {
         logger.warn({ url }, 'Amazon CAPTCHA detected — price check blocked');
         return {
           success: false,
-          error: new AdapterError(
-            ErrorType.FORBIDDEN,
-            'Amazon CAPTCHA detected',
-            true // retryable
-          ),
+          error: new AdapterError(ErrorType.FORBIDDEN, 'Amazon CAPTCHA detected', true),
         };
       }
 
