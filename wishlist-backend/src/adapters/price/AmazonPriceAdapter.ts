@@ -79,7 +79,7 @@ export class AmazonPriceAdapter implements IPriceAdapter {
     let browser;
     try {
       browser = await puppeteer.launch({
-        executablePath: executablePath(),
+        executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || executablePath(),
         headless: true,
         args: [
           '--no-sandbox',

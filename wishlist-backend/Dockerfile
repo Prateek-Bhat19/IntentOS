@@ -1,5 +1,5 @@
 # Use official Puppeteer image which includes Chrome
-FROM ghcr.io/puppeteer/puppeteer:21.5.2
+FROM ghcr.io/puppeteer/puppeteer:latest
 
 # Set working directory
 WORKDIR /usr/src/app
